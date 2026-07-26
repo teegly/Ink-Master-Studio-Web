@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { createElement, createRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -15,7 +16,7 @@ import {
 import { EditorToolbar } from '../components/editor/EditorToolbar';
 import {
   ProductInspector,
-  createCenterProductPlacementCommand,
+  createProductPlacementPresetCommand,
   createResetProductPlacementCommand,
   getProductReadinessEstimate,
 } from '../components/editor/ProductInspector';
@@ -465,17 +466,18 @@ test('product inspector exposes the complete shirt catalog and bounded placement
   assert.match(markup, /id="product-position-y"[^>]*min="0"[^>]*max="100"/);
   assert.match(markup, /id="product-scale"[^>]*min="10"[^>]*max="150"/);
   assert.match(markup, /id="product-rotation"[^>]*min="-180"[^>]*max="180"/);
-  assert.match(markup, />Center artwork<\/button>/);
-  assert.match(markup, />Fit print area<\/button>/);
+  assert.match(markup, />Standard front<\/button>/);
+  assert.match(markup, />Left chest<\/button>/);
+  assert.match(markup, />Oversized front<\/button>/);
   assert.match(markup, />Reset<\/button>/);
   assert.match(markup, /aria-label="Artwork for Black"/);
   assert.match(markup, /aria-label="Mockup color mode"/);
   assert.match(markup, />Print intent<\/button>/);
 
-  assert.deepEqual(createCenterProductPlacementCommand(product), {
+  assert.deepEqual(createProductPlacementPresetCommand('left-chest'), {
     type: 'set-product-placement',
-    placement: { ...product.placement, x: 0.5, y: 0.5 },
-    historyGroup: 'product-center',
+    placement: { x: 0.28, y: 0.27, scale: 0.32, rotation: 0 },
+    historyGroup: 'product-preset:left-chest',
   });
   assert.deepEqual(createResetProductPlacementCommand(), {
     type: 'set-product-placement',
@@ -512,6 +514,14 @@ test('Product Basic leads with readiness and keeps precision in Advanced', () =>
   assert.match(basic, />Create print-ready PNG<\/button>/);
   assert.doesNotMatch(basic, /Artwork checks|Artwork for Black|Mockup color mode|product-position-x|product-scale/);
   assert.doesNotMatch(basic, /Largest source edge|Estimated scale|Print Lens/);
+  assert.doesNotMatch(basic, /aria-label="Print method"/);
+  assert.doesNotMatch(basic, /DTF transfer/);
+  assert.doesNotMatch(basic, /Cut vinyl/);
+  assert.match(basic, />Standard front<\/button>/);
+  assert.match(basic, />Left chest<\/button>/);
+  assert.doesNotMatch(basic, />Oversized front<\/button>/);
+  assert.doesNotMatch(basic, />Center artwork<\/button>/);
+  assert.doesNotMatch(basic, />Fit print area<\/button>/);
 
   const advanced = renderToStaticMarkup(createElement(ProductInspector, { ...props, mode: 'advanced' }));
   assert.match(advanced, /Artwork checks/);
@@ -519,6 +529,13 @@ test('Product Basic leads with readiness and keeps precision in Advanced', () =>
   assert.match(advanced, /aria-label="Mockup color mode"/);
   assert.match(advanced, /id="product-position-x"/);
   assert.match(advanced, /id="product-scale"/);
+  assert.match(advanced, />Standard front<\/button>/);
+  assert.match(advanced, />Left chest<\/button>/);
+  assert.match(advanced, />Oversized front<\/button>/);
+  assert.match(advanced, /aria-label="Print method"/);
+  assert.match(advanced, />DTG</);
+  assert.match(advanced, />DTF transfer</);
+  assert.match(advanced, />Cut vinyl</);
 });
 
 test('product inspector exposes shirt and artwork recovery without hiding placement controls', () => {
@@ -1662,4 +1679,15 @@ test('Shift-wheel zoom stays bounded and keeps the design centered', () => {
     height: 800,
     scale: 0.8,
   });
+});
+
+test('Product export uses the garment-assigned artwork variation', () => {
+  const source = readFileSync(
+    new URL('../components/editor/EditorApp.tsx', import.meta.url),
+    'utf8',
+  );
+  const dialogCall = source.match(/<ProductExportDialog[\s\S]*?\/>/)?.[0];
+  assert.ok(dialogCall, 'Expected the Product export dialog call.');
+  assert.match(dialogCall, /variation=\{productArtworkVariation\}/);
+  assert.doesNotMatch(dialogCall, /variation=\{variation\}/);
 });
